@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wave Platformer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-wrapper">
+    <canvas id="gameCanvas"></canvas>
+    <div id="sunrise-bar"><div id="sunrise-fill"></div></div>
+    <div id="timer-display"></div>
+    <div id="damnation-display"></div>
+    <div id="level-name-display"></div>
+
+    <!-- HUD -->
+    <div id="hud">
+      <button id="hud-pause-btn" class="btn btn-small" style="padding: 2px 10px; margin: 0 10px 0 0; border-color: #555; height: 26px; pointer-events: auto;">⏸ PAUSE</button>
+      <div>Wave: <span id="wave">1</span></div>
+      <div>Score: <span id="score">0</span></div>
+      <!-- Hidden spans kept for JS compatibility -->
+      <span id="hp" style="display:none">5</span>
+      <span id="hp-max" style="display:none">5</span>
+      <span id="echoes" style="display:none">0</span>
+      <span id="fragments" style="display:none">0</span>
+      <span id="heavy-cd" style="display:none">READY</span>
+      <span id="dash-cd" style="display:none">READY</span>
+      <span id="weapon-name" style="display:none">Rusty Blade</span>
+    </div>
+
+    <!-- Riff Charge Bar -->
+    <div id="riff-charge-bar"><div id="riff-fill"></div></div>
+    <div id="riff-charge-text"></div>
+
+    <!-- ═══ HOME SCREEN ═══ -->
+    <div id="home-screen" class="game-overlay" style="display:flex;">
+      <div class="home-title">WAVE PLATFORMER</div>
+      <div class="home-subtitle">SURVIVE THE NIGHT</div>
+      <button class="btn btn-primary" id="home-play-btn">PLAY</button>
+      <button class="btn btn-small" id="home-shop-btn">SHOP</button>
+      <button class="btn btn-small" id="home-settings-btn">SETTINGS</button>
+      <button class="btn btn-small" id="home-stats-btn">ATTRIBUTES</button>
+    </div>
+
+    <!-- ═══ LEVEL SELECT ═══ -->
+    <div id="level-select-screen" class="game-overlay" style="overflow-y:auto; padding-top: 60px;">
+      <button class="btn btn-small overlay-back-btn" id="level-back-btn">← BACK</button>
+      <h2>SELECT LEVEL</h2>
+      <div id="level-cards"></div>
+    </div>
+
+    <!-- ═══ SHOP ═══ -->
+    <div id="shop-screen" class="game-overlay" style="overflow-y:auto; padding-top: 60px;">
+      <button class="btn btn-small overlay-back-btn" id="shop-back-btn">← BACK</button>
+      <h2>🎸 THE GEAR SHOP</h2>
+      <div class="shop-header">
+        <span>Echoes: <strong id="shop-echoes">0</strong></span>
+        <span>Shop Tier: <strong id="shop-tier">0</strong></span>
+      </div>
+      <div id="shop-items"></div>
+    </div>
+
+    <!-- ═══ SETTINGS ═══ -->
+    <div id="settings-screen" class="game-overlay" style="padding-top: 60px;">
+      <button class="btn btn-small overlay-back-btn" id="settings-back-btn">← BACK</button>
+      <h2>SETTINGS</h2>
+      <div class="settings-group">
+        <div class="setting-row">
+          <span class="setting-label">Sound</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="sound-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="controls-ref">
+        <h3>CONTROLS</h3>
+        <p>A / D or ← / → &nbsp; Move</p>
+        <p>W or ↑ or SPACE &nbsp; Jump</p>
+        <p>S or ↓ &nbsp; Crouch</p>
+        <p>J or Z &nbsp; Light Attack</p>
+        <p>K or X &nbsp; Heavy Attack (4s cooldown)</p>
+        <p>L.Shift &nbsp; Dash / Dodge (1.5s cooldown)</p>
+        <p>Jump + L.Shift &nbsp; Dash Jump (diagonal)</p>
+        <p>Q &nbsp; Special Attack / Riff (when charged)</p>
+        <p>` (backtick) &nbsp; Toggle Debug Panel</p>
+      </div>
+    </div>
+
+    <!-- ═══ STATS / ATTRIBUTES ═══ -->
+    <div id="stats-screen" class="game-overlay" style="padding-top: 60px;">
+      <button class="btn btn-small overlay-back-btn" id="stats-back-btn">← BACK</button>
+      <h2>ATTRIBUTES</h2>
+      <div id="stats-content"></div>
+    </div>
+
+    <!-- ═══ GAME OVER ═══ -->
+    <div id="game-over-screen" class="game-overlay">
+      <h1>GAME OVER</h1>
+      <div id="final-score">0</div>
+      <p>Enemies defeated</p>
+      <p id="final-wave"></p>
+      <p id="final-reason"></p>
+      <button class="btn btn-primary" id="retry-btn" style="margin-bottom: 12px;">Retry Level</button><br>
+      <button class="btn" id="restart-btn">Back To Home</button>
+    </div>
+
+    <!-- ═══ VICTORY ═══ -->
+    <div id="victory-screen" class="game-overlay">
+      <h1>VICTORY</h1>
+      <div id="victory-rewards"></div>
+      <button class="btn btn-primary" id="victory-menu-btn" style="margin-top:24px;">CONTINUE</button>
+    </div>
+
+    <!-- ═══ DEVIL'S BARGAIN ═══ -->
+    <div id="bargain-screen" class="game-overlay">
+      <h2>☠ THE DEVIL'S BARGAIN ☠</h2>
+      <div class="bargain-desc" id="bargain-text">A sheet fragment materializes from the fallen...</div>
+      <div id="bargain-choices">
+        <div class="bargain-choice choice-fragment" id="bargain-take">
+          <h3>♫ Take Fragment</h3>
+          <p>Keep the sheet music fragment. One step closer to escape.</p>
+        </div>
+        <div class="bargain-choice choice-dark" id="bargain-dark">
+          <h3>🔥 Dark Power</h3>
+          <p id="dark-power-desc">Gain unholy strength...</p>
+        </div>
+      </div>
+      <p style="color:#633;font-size:10px;margin-top:16px;">Bargains Taken: <span id="bargain-damnation">0</span>/5</p>
+    </div>
+
+    <!-- ═══ FRAGMENT WIN ANIMATION ═══ -->
+    <div id="fragment-win-screen">
+      <div class="frag-icon">♫</div>
+      <div class="frag-title">FRAGMENT ACQUIRED</div>
+      <div class="frag-progress" id="frag-pips"></div>
+      <div class="frag-count" id="frag-count-text"></div>
+    </div>
+
+    <!-- ═══ ETERNAL DAMNATION WARNING ═══ -->
+    <div id="eternal-warning-screen" class="game-overlay">
+      <h1>YOU ARE ETERNALLY DAMNED</h1>
+      <p>The darkness has consumed your soul.</p>
+      <p>Your only path forward is through damnation itself.</p>
+      <p style="color:#f44;margin-top:10px;">Survive 8 waves with a single heartbeat... or lose everything.</p>
+      <button class="btn btn-danger" id="eternal-menu-btn" style="margin-top:24px;">RETURN TO MENU</button>
+    </div>
+
+    <!-- ═══ BOSS SUMMON ═══ -->
+    <div id="boss-summon-screen" class="game-overlay">
+      <div class="summon-icon">☠</div>
+      <h2>SUMMONING THE DEMON LORD</h2>
+      <p>The Sheet Music burns as the ritual begins...</p>
+      <div class="summon-progress">
+        <div class="summon-progress-fill" id="summon-progress-fill"></div>
+      </div>
+    </div>
+
+    <!-- ═══ PAUSE MENU ═══ -->
+    <div id="pause-screen" class="game-overlay">
+      <h2>PAUSED</h2>
+      <button class="btn btn-primary" id="pause-resume-btn">RESUME</button>
+      <button class="btn btn-small" id="pause-settings-btn">SETTINGS</button>
+      <button class="btn btn-small" id="pause-inventory-btn">ATTRIBUTES</button>
+      <button class="btn btn-small btn-danger" id="pause-home-btn">RETURN HOME</button>
+    </div>
+
+    <!-- Combo display -->
+    <div id="combo-display"></div>
+
+    <!-- Controls info bar -->
+    <div id="controls-info">
+      Move: A/D &nbsp;|&nbsp; Jump: W/Space &nbsp;|&nbsp; Crouch: S &nbsp;|&nbsp; Light: J/Z &nbsp;|&nbsp; Heavy: K/X &nbsp;|&nbsp; Dash: Shift &nbsp;|&nbsp; Riff: Q &nbsp;|&nbsp; Debug: `
+    </div>
+  </div>
+
+  <!-- Debug Panel -->
+  <div id="debug-panel">
+    <h3>⚙ DEBUG PANEL</h3>
+    <label>Game Speed <span class="val" id="dbg-speed-val">1.0x</span></label>
+    <input type="range" id="dbg-speed" min="0.2" max="3" step="0.1" value="1.0">
+    <label>Enemy Speed Mult <span class="val" id="dbg-espeed-val">1.0x</span></label>
+    <input type="range" id="dbg-espeed" min="0.1" max="3" step="0.1" value="1.0">
+    <label>Player Speed Mult <span class="val" id="dbg-pspeed-val">1.0x</span></label>
+    <input type="range" id="dbg-pspeed" min="0.5" max="3" step="0.1" value="1.0">
+    <label><input type="checkbox" id="dbg-god">God Mode</label>
+    <label><input type="checkbox" id="dbg-unlock-levels">Unlock All Levels</label>
+    <label><input type="checkbox" id="dbg-showcombos" checked>Show Combo Log</label>
+    <label>Spawn Count <span class="val" id="dbg-count-val">5</span></label>
+    <input type="range" id="dbg-count" min="1" max="30" step="1" value="5">
+    <button id="dbg-spawn">Spawn Enemies</button>
+    <button id="dbg-kill-all">Kill All</button>
+    <button id="dbg-heal">Full Heal</button>
+    <button id="dbg-clear-fb">Clear Fireballs</button>
+    <button id="dbg-clear-inv" style="color:#f84">Reset Progression</button>
+    <button id="dbg-max-res" style="color:#8f4">Max Resources</button>
+    <label style="margin-top:8px;color:#666">Combo History:</label>
+    <div id="dbg-combo-log" style="max-height:80px;overflow-y:auto;font-size:10px;color:#888;margin-top:4px;"></div>
+  </div>
+
+  <!-- Scripts (dependency order) -->
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/effects.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/enemies.js"></script>
+  <script src="js/combat.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
