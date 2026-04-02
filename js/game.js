@@ -89,6 +89,7 @@ function startNextWave() {
     waveTotalEnemies = 1;
     waveSpawned = 1;
     waveBannerTimer = 120;
+    waveDelay = 0;
     return;
   }
 
@@ -285,22 +286,27 @@ function gameLoop(timestamp) {
       spawnNextBatch();
     }
 
-    // Wave end check
+    // Wave end / Boss death check
     const livingEnemies = enemies.filter(e => !e.dead);
     if (enemiesRemaining <= 0 && livingEnemies.length === 0) {
       waveDelay++;
-      if (waveDelay > 90) {
-        startNextWave();
-        waveBannerTimer = 90;
-        if (currentLevelConfig?.difficulty !== 'Boss') generatePlatforms();
-      }
-    }
-
-    // Boss death check
-    if (currentLevelConfig?.difficulty === 'Boss') {
-      const boss = enemies.find(e => e.isBoss);
-      if (boss && boss.dead && boss.deathTimer <= 0) {
-        levelComplete();
+      if (currentLevelConfig?.difficulty === 'Boss') {
+        // Only trigger victory if the boss wave actually started and finished
+        if (waveNumber > 0 && waveDelay > 60) {
+          levelComplete();
+          // Reset waveDelay to prevent multiple calls
+          waveDelay = -9999;
+        } else if (waveNumber === 0 && waveDelay > 60) {
+          // Spawn boss at start sequence
+          startNextWave();
+          waveBannerTimer = 120;
+        }
+      } else {
+        if (waveDelay > 90) {
+          startNextWave();
+          waveBannerTimer = 90;
+          generatePlatforms();
+        }
       }
     }
 

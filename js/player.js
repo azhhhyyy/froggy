@@ -42,7 +42,7 @@ const player = {
   heavyAttackTimer: 0,
   heavyAttackDuration: 20,
   heavyCooldown: 0,
-  heavyMaxCooldown: 240,
+  heavyMaxCooldown: 60,
 
   // Invincibility frames
   iFrames: 0,
@@ -53,7 +53,7 @@ const player = {
   dashDuration: 12,
   dashSpeed: 10,
   dashCooldown: 0,
-  dashMaxCooldown: 90,
+  dashMaxCooldown: 18,
 
   // Dash Jump
   dashJumping: false,
@@ -161,7 +161,7 @@ const player = {
     } else if (this.onGround && !this.lightAttacking && !this.heavyAttacking && !this.crouching) {
       this.walkFrame = 0; this.walkTimer = 0;
       this.idleTimer++;
-      if (this.idleTimer > 6) { this.idleTimer = 0; this.idleFrame = (this.idleFrame + 1) % 11; }
+      if (this.idleTimer > 6) { this.idleTimer = 0; this.idleFrame = (this.idleFrame + 1) % 4; }
     } else {
       this.walkFrame = 0; this.walkTimer = 0;
       this.idleFrame = 0; this.idleTimer = 0;
@@ -302,18 +302,22 @@ const player = {
     ctx.lineWidth = 2;
 
     // Base Character
+    let drawnSprite = false;
+
     if (this.lightAttacking && froggyAtkLight.complete) {
       const p = 1 - (this.lightAttackTimer / this.lightAttackDuration);
       const safeFrame = Math.min(3, Math.floor(p * 4));
       ctx.scale(this.facing, 1);
       ctx.drawImage(froggyAtkLight, safeFrame * 64, 0, 64, 64, -48, -108, 96, 96);
       ctx.scale(this.facing, 1);
+      drawnSprite = true;
     } else if (this.heavyAttacking && froggyAtkHeavy.complete) {
       const p = 1 - (this.heavyAttackTimer / this.heavyAttackDuration);
       const safeFrame = Math.min(5, Math.floor(p * 6));
       ctx.scale(this.facing, 1);
       ctx.drawImage(froggyAtkHeavy, safeFrame * 64, 0, 64, 64, -48, -108, 96, 96);
       ctx.scale(this.facing, 1);
+      drawnSprite = true;
     } else if (!this.lightAttacking && !this.heavyAttacking) {
       const isMoving = Math.abs(this.vx) > 0.1;
       ctx.scale(this.facing, 1);
@@ -321,13 +325,17 @@ const player = {
       
       if (!isMoving && this.onGround && !this.crouching && froggyIdle.complete) {
         ctx.drawImage(froggyIdle, this.idleFrame * 64, 0, 64, 64, -48, -108, 96, 96);
+        drawnSprite = true;
       } else if (froggySprite.complete) {
         ctx.drawImage(froggySprite, this.walkFrame * 64, 0, 64, 64, -48, -108, 96, 96);
+        drawnSprite = true;
       }
       
       if (this.crouching) ctx.scale(1, 1/0.6);
       ctx.scale(this.facing, 1);
-    } else if (!this.lightAttacking && !this.heavyAttacking) {
+    }
+
+    if (!drawnSprite) {
       if (this.crouching) {
         ctx.strokeRect(-18, -this.h, 36, this.h);
         ctx.beginPath(); ctx.arc(0, -this.h - 8, 8, 0, Math.PI * 2); ctx.stroke();
