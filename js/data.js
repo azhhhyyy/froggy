@@ -12,8 +12,8 @@ const LEVELS = [
     waves: 8,
     enemyHpBase: 3, enemyHpScale: 0,
     enemyCountBase: 3, enemyCountScale: 2,
-    fragmentDropRate: 0.12, fragmentDropRateScale: 0,
-    maxFragments: 3,
+    fragmentDropRate: 0.5, fragmentDropRateScale: 0,
+    maxFragments: 2,
     maxFireballs: 4,
     unlockRequirement: null,
     description: "The hunting grounds stir. Collect your first fragments.",
@@ -26,10 +26,10 @@ const LEVELS = [
     waves: 10,
     enemyHpBase: 5, enemyHpScale: 0.01,
     enemyCountBase: 4, enemyCountScale: 2,
-    fragmentDropRate: 0.15, fragmentDropRateScale: 0.01,
-    maxFragments: 8,
+    fragmentDropRate: 0.5, fragmentDropRateScale: 0,
+    maxFragments: 5,
     maxFireballs: 6,
-    unlockRequirement: { fragments: 3 },
+    unlockRequirement: { fragments: 2 },
     description: "Deeper you descend. Enemies grow stronger, but the rewards are greater.",
     color: "#f55", icon: "🔥"
   },
@@ -54,8 +54,8 @@ const LEVELS = [
     waves: 8,
     enemyHpBase: 6, enemyHpScale: 0.02,
     enemyCountBase: 4, enemyCountScale: 3,
-    fragmentDropRate: 0.12, fragmentDropRateScale: 0.005,
-    maxFragments: 4,
+    fragmentDropRate: 0.5, fragmentDropRateScale: 0,
+    maxFragments: 2,
     maxFireballs: 4,
     unlockRequirement: { bossesDefeated: 1 },
     description: "The wastes echo with forgotten screams. Harder foes await.",
@@ -68,10 +68,10 @@ const LEVELS = [
     waves: 10,
     enemyHpBase: 8, enemyHpScale: 0.02,
     enemyCountBase: 5, enemyCountScale: 3,
-    fragmentDropRate: 0.16, fragmentDropRateScale: 0.01,
-    maxFragments: 8,
+    fragmentDropRate: 0.5, fragmentDropRateScale: 0,
+    maxFragments: 5,
     maxFireballs: 6,
-    unlockRequirement: { fragments: 4 },
+    unlockRequirement: { fragments: 2 },
     description: "The heat warps reality. Molten enemies pour from the dark.",
     color: "#f84", icon: "⚙"
   },
@@ -96,8 +96,8 @@ const LEVELS = [
     waves: 8,
     enemyHpBase: 10, enemyHpScale: 0.03,
     enemyCountBase: 5, enemyCountScale: 3,
-    fragmentDropRate: 0.13, fragmentDropRateScale: 0.008,
-    maxFragments: 5,
+    fragmentDropRate: 0.5, fragmentDropRateScale: 0,
+    maxFragments: 2,
     maxFireballs: 4,
     unlockRequirement: { bossesDefeated: 2 },
     description: "Obsidian towers pierce a burning sky. The final circle begins.",
@@ -110,10 +110,10 @@ const LEVELS = [
     waves: 10,
     enemyHpBase: 14, enemyHpScale: 0.03,
     enemyCountBase: 6, enemyCountScale: 3,
-    fragmentDropRate: 0.18, fragmentDropRateScale: 0.012,
-    maxFragments: 8,
+    fragmentDropRate: 0.5, fragmentDropRateScale: 0,
+    maxFragments: 5,
     maxFireballs: 6,
-    unlockRequirement: { fragments: 5 },
+    unlockRequirement: { fragments: 2 },
     description: "The world burns. Survive the pit or burn with it.",
     color: "#f44", icon: "🔥"
   },
@@ -189,7 +189,7 @@ const DARK_POWER_LIST = [
   { name: 'Soul Chain', desc: 'Killing an enemy heals you to full HP', key: 'soulchain' }
 ];
 
-const FRAGMENTS_FOR_SHEET_MUSIC = 8;
+const FRAGMENTS_FOR_SHEET_MUSIC = 5;
 
 // ─── SHOP — Rock & Guitar themed items ───────────────────
 // shopTier = number of bosses defeated (0,1,2,3)
