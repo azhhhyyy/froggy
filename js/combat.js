@@ -16,7 +16,7 @@ function killEnemy(e) {
   for (let i = 0; i < 3; i++) spawnParticles(e.x + e.w/2 + (Math.random()-0.5)*20, e.y + e.h/2, 2, '#ff0');
 
   // Riff charge
-  if (progression.riffs.length > 0) {
+  if (hasUnlockedRiff()) {
     const chargeBoost = 1 + (shopBuffs.riffChargeBonus || 0);
     riffCharge = Math.min(riffCharge + chargeBoost, RIFFS[0].chargeRequired);
   }
@@ -43,7 +43,7 @@ function killEnemy(e) {
 
 // ─── Riff / Special Attack ────────────────────────────────
 function activateRiff() {
-  if (progression.riffs.length === 0) return;
+  if (!hasUnlockedRiff()) return;
   const riff = RIFFS.find(r => r.id === progression.riffs[0]);
   if (!riff || riffCharge < riff.chargeRequired || riffActive) return;
 

@@ -39,13 +39,21 @@ let progression = {
   devilsBargainCount: 0,
   eternalDamnationPending: false,
   eternalDamnationCompleted: false,
-  soundOn: true
+  soundOn: true,
+  // Volume for in-game music (BGM). 0..1.
+  musicVolume: 0.10
 };
 
 function ensurePermanentUnlocks() {
-  if (!progression.riffs.includes('infernal_chord')) {
-    progression.riffs.push('infernal_chord');
+  // Riffs (special attacks) should be locked until a boss is defeated.
+  // Migrate old saves that may have had riffs pre-granted.
+  if (!progression.bossesDefeated || progression.bossesDefeated < 1) {
+    if (progression.riffs?.length) progression.riffs = [];
   }
+}
+
+function hasUnlockedRiff() {
+  return (progression.bossesDefeated || 0) >= 1 && (progression.riffs?.length || 0) > 0;
 }
 
 function loadPersistent() {
@@ -77,7 +85,8 @@ function resetAllProgression() {
     devilsBargainCount: 0,
     eternalDamnationPending: false,
     eternalDamnationCompleted: false,
-    soundOn: true
+    soundOn: true,
+    musicVolume: 0.10
   };
   ensurePermanentUnlocks();
   savePersistent();
@@ -212,6 +221,81 @@ let audioCtx = null;
 let musicPlaying = false;
 let nextNoteTime = 0;
 let noteIndex = 0;
+
+// Optional MP3 BGM playback (per-level tracks)
+let bgmSrcOverride = null; // set by game.js before calling playMusic()
+let bgmAudioEl = null;
+let bgmFadeRaf = null;
+let bgmFadeToken = 0;
+let bgmTargetVolume = 0.12;
+
+function setLevelBgmSrc(src) {
+  bgmSrcOverride = src;
+}
+
+function setMusicVolume(volume01) {
+  const v = Math.max(0, Math.min(1, volume01));
+  progression.musicVolume = v;
+  savePersistent();
+
+  // If MP3 BGM is active, update it smoothly.
+  if (bgmAudioEl) fadeBgmVolumeTo(v, 300);
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function fadeBgmVolumeTo(target, durationMs) {
+  if (!bgmAudioEl) return;
+  const audio = bgmAudioEl;
+  const from = audio.volume;
+
+  bgmFadeToken++;
+  const token = bgmFadeToken;
+  const start = performance.now();
+
+  const step = (now) => {
+    if (token !== bgmFadeToken) return;
+    const elapsed = now - start;
+    const t = Math.min(1, elapsed / Math.max(1, durationMs));
+    const eased = easeInOutCubic(t);
+    audio.volume = from + (target - from) * eased;
+    if (t < 1) {
+      bgmFadeRaf = requestAnimationFrame(step);
+    } else {
+      bgmFadeRaf = null;
+    }
+  };
+
+  bgmFadeRaf = requestAnimationFrame(step);
+}
+
+function playBgmTrack(src, { volume = 0.12, fadeInMs = 1200, loop = true } = {}) {
+  if (!progression.soundOn) return;
+
+  // Stop doom-riff scheduler if it was running.
+  musicPlaying = false;
+
+  if (bgmAudioEl) {
+    try { bgmAudioEl.pause(); } catch (e) { /* ignore */ }
+    bgmAudioEl = null;
+  }
+  if (bgmFadeRaf) cancelAnimationFrame(bgmFadeRaf);
+  bgmFadeRaf = null;
+
+  bgmTargetVolume = volume;
+  const audio = new Audio(src);
+  audio.loop = loop;
+  audio.preload = 'auto';
+  audio.volume = 0;
+  bgmAudioEl = audio;
+
+  audio.play().catch(() => { /* ignore autoplay/interrupt errors */ });
+
+  // Smoothly ramp up to target.
+  fadeBgmVolumeTo(volume, fadeInMs);
+}
 const doomRiff = [
   41.2, 0, 41.2, 41.2, 0,
   46.25, 0, 46.25, 46.25, 0,
@@ -226,9 +310,16 @@ function initAudio() {
 
 function scheduleMusic() {
   if (!musicPlaying || !audioCtx) return;
+  const vol = progression.musicVolume ?? 0.10;
   while (nextNoteTime < audioCtx.currentTime + 0.1) {
     const freq = doomRiff[noteIndex];
     if (freq > 0) {
+      if (vol <= 0.0001) {
+        // Still advance timing but skip oscillator creation.
+        nextNoteTime += 0.13;
+        noteIndex = (noteIndex + 1) % doomRiff.length;
+        continue;
+      }
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       
@@ -240,8 +331,10 @@ function scheduleMusic() {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(freq, nextNoteTime);
       
-      gain.gain.setValueAtTime(0.15, nextNoteTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, nextNoteTime + 0.15);
+      // Scale to user-selected music volume.
+      const minVol = Math.max(0.001, vol * 0.02);
+      gain.gain.setValueAtTime(vol, nextNoteTime);
+      gain.gain.exponentialRampToValueAtTime(minVol, nextNoteTime + 0.15);
       
       osc.connect(filter);
       filter.connect(gain);
@@ -258,6 +351,16 @@ function scheduleMusic() {
 
 function playMusic() {
   if (!progression.soundOn) return;
+  // Ensure WebAudio context exists for gameplay SFX.
+  initAudio();
+
+  // If a per-level MP3 track is configured, use that instead of the doom riff.
+  if (bgmSrcOverride) {
+    const vol = progression.musicVolume ?? 0.10;
+    playBgmTrack(bgmSrcOverride, { volume: vol, fadeInMs: 1200, loop: true });
+    return;
+  }
+
   initAudio();
   if (musicPlaying) return;
   musicPlaying = true;
@@ -267,10 +370,34 @@ function playMusic() {
 
 function stopMusic() {
   musicPlaying = false;
+  if (!bgmAudioEl) return;
+
+  const audio = bgmAudioEl;
+  fadeBgmVolumeTo(0, 800);
+  const token = bgmFadeToken;
+  setTimeout(() => {
+    if (token !== bgmFadeToken) return;
+    try { audio.pause(); } catch (e) { /* ignore */ }
+    if (bgmAudioEl === audio) bgmAudioEl = null;
+  }, 850);
 }
 
 function playSound(type) {
-  if (!progression.soundOn || !audioCtx) return;
+  if (!progression.soundOn) return;
+
+  // Heavy attack uses a dedicated MP3 SFX.
+  if (type === 'heavyAttack') {
+    try {
+      // Use a fresh Audio instance for reliable immediate retriggering.
+      const a = new Audio('audio/Atk-audio/atk-heavy.mp3');
+      a.volume = 0.7;
+      a.currentTime = 0;
+      a.play().catch(() => { /* ignore playback errors */ });
+    } catch (e) { /* non-fatal */ }
+    return;
+  }
+
+  if (!audioCtx) return;
   try {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();

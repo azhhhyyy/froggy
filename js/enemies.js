@@ -7,11 +7,19 @@ enemyWalkSprite.src = 'sprites/enemy-low-walking.png';
 const enemyAtkSprite = new Image();
 enemyAtkSprite.src = 'sprites/enemy-low-attack.png';
 
+// Boss sprite sheets
+const demonCircle1Sprite = new Image();
+demonCircle1Sprite.src = 'sprites/demon-circle-1.png';
+// Sprite sheet layout: 9 columns x 6 rows.
+const DEMON_CIRCLE1_FRAMES_X = 9;
+const DEMON_CIRCLE1_FRAMES_Y = 6;
+
 function createEnemy(wave, levelConfig, fromLeft) {
   const baseHp = levelConfig ? levelConfig.enemyHpBase : 3;
   const hpScale = levelConfig ? (levelConfig.enemyHpScale || 0) : 0;
   const hp = Math.ceil(baseHp * (1 + hpScale * wave));
-  const speed = 0.8 + wave * 0.06 + Math.random() * 0.3;
+  // Speed up enemies for a snappier feel.
+  const speed = (0.8 + wave * 0.06 + Math.random() * 0.3) * 1.3;
 
   const spawnX = fromLeft
     ? -(Math.random() * 200 + 30)
@@ -301,6 +309,9 @@ function createBoss() {
     phase: 1,
     phaseTransitionTimer: 0,
 
+    // Sprite sheet selection for this boss instance
+    spriteSheet: (currentLevelConfig?.id === 3) ? 'demon-circle-1' : null,
+
     // Melee
     meleeRange: 70,
     meleeCooldown: 60,
@@ -358,10 +369,10 @@ function updateBoss(b) {
     playSound('bargain');
     // Phase adjustments
     if (b.phase === 2) {
-      b.speed = 0.8; b.meleeMaxCooldown = 90; b.fireballMaxCooldown = 120;
+      b.speed = 0.8 * 1.3; b.meleeMaxCooldown = 90; b.fireballMaxCooldown = 120;
     }
     if (b.phase === 3) {
-      b.speed = 1.2; b.meleeMaxCooldown = 60; b.fireballMaxCooldown = 80; b.meleeDmg = 3;
+      b.speed = 1.2 * 1.3; b.meleeMaxCooldown = 60; b.fireballMaxCooldown = 80; b.meleeDmg = 3;
     }
   }
 
@@ -528,29 +539,50 @@ function drawBoss(b) {
   const baseColor = b.hitFlash > 0 ? '#fff' : (b.phase === 3 ? '#f22' : (b.phase === 2 ? '#f80' : '#f55'));
   ctx.strokeStyle = baseColor; ctx.lineWidth = 3;
 
-  // Body
-  ctx.strokeRect(-b.w/2, -b.h, b.w, b.h);
+  const useDemonSprite = b.spriteSheet === 'demon-circle-1' &&
+    demonCircle1Sprite.complete &&
+    demonCircle1Sprite.naturalWidth > 0;
 
-  // Horns
-  ctx.beginPath();
-  ctx.moveTo(-20, -b.h); ctx.lineTo(-30, -b.h - 30); ctx.lineTo(-10, -b.h);
-  ctx.moveTo(20, -b.h); ctx.lineTo(30, -b.h - 30); ctx.lineTo(10, -b.h);
-  ctx.stroke();
+  if (useDemonSprite) {
+    const frameCount = DEMON_CIRCLE1_FRAMES_X * DEMON_CIRCLE1_FRAMES_Y;
+    const frame = Math.floor(b.animTimer / 10) % frameCount;
+    const frameW = demonCircle1Sprite.naturalWidth / DEMON_CIRCLE1_FRAMES_X;
+    const frameH = demonCircle1Sprite.naturalHeight / DEMON_CIRCLE1_FRAMES_Y;
+    const sx = (frame % DEMON_CIRCLE1_FRAMES_X) * frameW;
+    const sy = Math.floor(frame / DEMON_CIRCLE1_FRAMES_X) * frameH;
 
-  // Eyes (large, menacing)
-  ctx.fillStyle = b.phase === 3 ? '#ff0' : (b.fireballCharging ? '#ff0' : baseColor);
-  if (b.fireballCharging || b.phase === 3) { ctx.shadowColor = '#f80'; ctx.shadowBlur = 12; }
-  ctx.fillRect(-15, -b.h + 15, 8, 6);
-  ctx.fillRect(7, -b.h + 15, 8, 6);
-  ctx.shadowBlur = 0;
+    // Draw the sprite larger, with correct aspect ratio.
+    const scale = 2.0; // overall boss size multiplier (slightly larger)
+    const baseW = b.w * scale;
+    const aspect = frameH / frameW;
+    const destW = baseW;
+    const destH = baseW * aspect;
+    ctx.drawImage(demonCircle1Sprite, sx, sy, frameW, frameH, -destW / 2, -destH, destW, destH);
+  } else {
+    // Body (fallback procedural demon)
+    ctx.strokeRect(-b.w/2, -b.h, b.w, b.h);
 
-  // Mouth
-  ctx.strokeStyle = baseColor; ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let i = -12; i < 12; i += 6) {
-    ctx.moveTo(i, -b.h + 35); ctx.lineTo(i + 3, -b.h + 40);
+    // Horns
+    ctx.beginPath();
+    ctx.moveTo(-20, -b.h); ctx.lineTo(-30, -b.h - 30); ctx.lineTo(-10, -b.h);
+    ctx.moveTo(20, -b.h); ctx.lineTo(30, -b.h - 30); ctx.lineTo(10, -b.h);
+    ctx.stroke();
+
+    // Eyes (large, menacing)
+    ctx.fillStyle = b.phase === 3 ? '#ff0' : (b.fireballCharging ? '#ff0' : baseColor);
+    if (b.fireballCharging || b.phase === 3) { ctx.shadowColor = '#f80'; ctx.shadowBlur = 12; }
+    ctx.fillRect(-15, -b.h + 15, 8, 6);
+    ctx.fillRect(7, -b.h + 15, 8, 6);
+    ctx.shadowBlur = 0;
+
+    // Mouth
+    ctx.strokeStyle = baseColor; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = -12; i < 12; i += 6) {
+      ctx.moveTo(i, -b.h + 35); ctx.lineTo(i + 3, -b.h + 40);
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
 
   // Melee visual
   if (b.isAttacking) {

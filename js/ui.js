@@ -6,7 +6,8 @@
 function showScreen(screenId) {
   const allScreens = ['home-screen', 'level-select-screen', 'settings-screen', 'stats-screen',
     'start-screen', 'game-over-screen', 'bargain-screen', 'fragment-win-screen',
-    'eternal-warning-screen', 'boss-summon-screen', 'victory-screen', 'pause-screen', 'shop-screen'];
+    'eternal-warning-screen', 'boss-summon-screen', 'victory-screen', 'pause-screen', 'shop-screen',
+    'level-fragments-complete-screen'];
   allScreens.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -121,11 +122,25 @@ document.getElementById('level-back-btn')?.addEventListener('click', () => {
 function showSettings() {
   showScreen('settings-screen');
   document.getElementById('sound-toggle').checked = progression.soundOn;
+  const volPct = Math.round((progression.musicVolume ?? 0.10) * 100);
+  const volEl = document.getElementById('music-volume');
+  const volValEl = document.getElementById('music-volume-val');
+  if (volEl) volEl.value = String(volPct);
+  if (volValEl) volValEl.textContent = `${volPct}%`;
 }
 
 document.getElementById('sound-toggle')?.addEventListener('change', (e) => {
   progression.soundOn = e.target.checked;
   savePersistent();
+  if (!progression.soundOn) stopMusic();
+});
+
+document.getElementById('music-volume')?.addEventListener('input', (e) => {
+  const pct = parseInt(e.target.value, 10);
+  const v = Math.max(0, Math.min(1, pct / 100));
+  setMusicVolume(v);
+  const volValEl = document.getElementById('music-volume-val');
+  if (volValEl) volValEl.textContent = `${pct}%`;
 });
 
 let pauseOrigin = null; // tracks if settings/stats opened from pause
@@ -221,38 +236,92 @@ function closeBargain() {
   gamePaused = false;
 }
 
+// ─── Fragment Audio (MP3) ──────────────────────────────────
+// Plays a per-fragment sound when the player gains a sheet fragment.
+// When the final fragment is crafted, it plays Fragment-Final.mp3.
+const fragmentDropAudioCache = {};
+let activeFragmentAudio = null;
+let fragmentWinClosing = false;
+let levelFragmentsCompleteShown = false;
+let pendingLevelFragmentsComplete = false;
+let pendingLevelFragmentsCompleteLevelId = null;
+
+function playFragmentDropAudio(fragmentIndexWithinCycle) {
+  if (!progression.soundOn) return;
+  const base = 'audio/Fragments-Audio/';
+  const isFinal = fragmentIndexWithinCycle >= FRAGMENTS_FOR_SHEET_MUSIC;
+  const src = isFinal
+    ? `${base}Fragment-Final.mp3`
+    : `${base}Fragment-${fragmentIndexWithinCycle}.mp3`;
+
+  try {
+    if (!fragmentDropAudioCache[src]) fragmentDropAudioCache[src] = new Audio(src);
+    const a = fragmentDropAudioCache[src];
+    // Loop per-fragment audio while the fragment overlay is up.
+    a.loop = !isFinal;
+    activeFragmentAudio = a;
+    a.currentTime = 0;
+    a.play().catch(() => { /* ignore autoplay/interrupt errors */ });
+    return a;
+  } catch (e) {
+    // Audio errors should never break gameplay.
+  }
+}
+
 // ─── Fragment Win Animation ───────────────────────────────
 function awardFragmentDirect() {
+  // Capture the fragment number within the current 0..FRAGMENTS_FOR_SHEET_MUSIC cycle.
+  const fragmentIndexWithinCycle = progression.fragments + 1;
+  const crafted = fragmentIndexWithinCycle >= FRAGMENTS_FOR_SHEET_MUSIC;
+
   progression.fragments++;
   savePersistent();
   fragmentsEarnedThisRun++;
-  playSound('fragment');
-  showFragmentWinAnimation();
+
+  // Determine if this fragment completes the fragment cap for the current level.
+  // We'll show the prompt after the fragment overlay closes.
+  const levelNowComplete = currentLevelConfig &&
+    currentLevelConfig.difficulty !== 'Boss' &&
+    (currentLevelConfig.maxFragments || 0) > 0 &&
+    !levelFragmentsCompleteShown &&
+    !canDropFragmentInLevel(currentLevelConfig);
+  if (levelNowComplete) {
+    levelFragmentsCompleteShown = true;
+    pendingLevelFragmentsComplete = true;
+    pendingLevelFragmentsCompleteLevelId = currentLevelConfig.id;
+  }
+
+  const fragmentAudioEl = playFragmentDropAudio(fragmentIndexWithinCycle);
+  showFragmentWinAnimation({ crafted, fragmentAudioEl });
 
   // Check auto-conversion
   if (checkSheetMusicConversion()) {
     setTimeout(() => {
-      showCombo('SHEET MUSIC FORMED!', '#ff0');
+      showCombo('Music Sheet Crafted', '#ff0');
     }, 2600);
   }
 }
 
-function showFragmentWinAnimation() {
+function showFragmentWinAnimation({ crafted = false, fragmentAudioEl = null } = {}) {
   gamePaused = true;
   fragmentWinActive = true;
+  fragmentWinClosing = false;
   const screen = document.getElementById('fragment-win-screen');
   screen.classList.add('active');
+  const titleEl = screen.querySelector('.frag-title');
+  if (titleEl) titleEl.textContent = crafted ? 'Music Sheet Crafted' : 'FRAGMENT ACQUIRED';
 
   const pipsEl = document.getElementById('frag-pips');
   pipsEl.innerHTML = '';
-  const totalFrags = progression.fragments + progression.sheetMusic * FRAGMENTS_FOR_SHEET_MUSIC;
+  // Show progress within the current 0..FRAGMENTS_FOR_SHEET_MUSIC cycle.
+  const fragsThisCycle = progression.fragments;
   for (let i = 0; i < FRAGMENTS_FOR_SHEET_MUSIC; i++) {
     const pip = document.createElement('div');
-    pip.className = 'frag-pip' + (i < totalFrags ? ' filled' : '');
-    pip.textContent = i < totalFrags ? '♫' : '';
+    pip.className = 'frag-pip' + (i < fragsThisCycle ? ' filled' : '');
+    pip.textContent = i < fragsThisCycle ? '♫' : '';
     pipsEl.appendChild(pip);
   }
-  document.getElementById('frag-count-text').textContent = `${totalFrags} / ${FRAGMENTS_FOR_SHEET_MUSIC} Fragments`;
+  document.getElementById('frag-count-text').textContent = `${fragsThisCycle} / ${FRAGMENTS_FOR_SHEET_MUSIC} Fragments`;
 
   for (let i = 0; i < 30; i++) {
     particles.push({
@@ -264,16 +333,93 @@ function showFragmentWinAnimation() {
     });
   }
 
-  fragmentWinTimer = setTimeout(() => { closeFragmentWin(); }, 2500);
+  // Keep the final overlay up until the final mp3 finishes.
+  if (crafted && fragmentAudioEl) {
+    fragmentWinTimer = null;
+    fragmentAudioEl.addEventListener('ended', () => {
+      if (fragmentWinActive) closeFragmentWin();
+    }, { once: true });
+    // Fallback: if audio never ends (rare), don't trap the player forever.
+    setTimeout(() => {
+      if (fragmentWinActive) closeFragmentWin();
+    }, 60000);
+  } else {
+    // Non-final fragments: auto-close after the original timing.
+    fragmentWinTimer = setTimeout(() => { closeFragmentWin(); }, 2500);
+  }
 }
 
 function closeFragmentWin() {
+  if (fragmentWinClosing) return;
+  fragmentWinClosing = true;
+
   document.getElementById('fragment-win-screen').classList.remove('active');
   fragmentWinActive = false;
   gamePaused = false;
   if (fragmentWinTimer) clearTimeout(fragmentWinTimer);
   fragmentWinTimer = 0;
+
+  // Stop looping fragment audio immediately when overlay closes.
+  if (activeFragmentAudio) {
+    try {
+      activeFragmentAudio.pause();
+      activeFragmentAudio.currentTime = 0;
+    } catch (e) { /* ignore */ }
+    activeFragmentAudio = null;
+  }
+
+  // Show level fragment completion prompt after the fragment overlay closes.
+  if (pendingLevelFragmentsComplete &&
+    pendingLevelFragmentsCompleteLevelId === currentLevelConfig?.id) {
+    pendingLevelFragmentsComplete = false;
+    pendingLevelFragmentsCompleteLevelId = null;
+    showLevelFragmentsCompleteScreen();
+  }
 }
+
+// ─── Level Fragment Completion Prompt ─────────────────────
+function showLevelFragmentsCompleteScreen() {
+  showScreen('level-fragments-complete-screen');
+  gamePaused = true;
+
+  // Level 1 gets an extra "Proceed to Level 2" option.
+  const proceedBtn = document.getElementById('level-fragments-proceed-btn');
+  if (proceedBtn) {
+    proceedBtn.style.display = (currentLevelConfig?.id === 1) ? 'inline-block' : 'none';
+  }
+}
+
+document.getElementById('level-fragments-home-btn')?.addEventListener('click', () => {
+  // Stop gameplay + return to level select while keeping progression persisted.
+  gameRunning = false;
+  gamePaused = false;
+  stopMusic();
+  if (typeof bossIntroAudio !== 'undefined' && bossIntroAudio) {
+    try { bossIntroAudio.pause(); } catch (e) { /* ignore */ }
+    bossIntroAudio = null;
+  }
+  if (typeof bossIntroShakeInterval !== 'undefined' && bossIntroShakeInterval) {
+    clearInterval(bossIntroShakeInterval);
+    bossIntroShakeInterval = null;
+  }
+  if (typeof bossIntroActive !== 'undefined') bossIntroActive = false;
+  showLevelSelect();
+});
+
+document.getElementById('level-fragments-proceed-btn')?.addEventListener('click', () => {
+  // Proceed from Level 1 -> Level 2 immediately.
+  const lvl2 = LEVELS.find(l => l.id === 2);
+  if (!lvl2) return;
+  gamePaused = false;
+  stopMusic();
+  showScreen(null);
+  startLevel(lvl2);
+});
+
+document.getElementById('level-fragments-continue-btn')?.addEventListener('click', () => {
+  gamePaused = false;
+  showScreen(null); // back to gameplay
+});
 
 // ─── Eternal Damnation ────────────────────────────────────
 let corrosionProgress = 0;
@@ -355,6 +501,55 @@ let bossSummonTimer = 0;
 function showBossSummon(level) {
   showScreen('boss-summon-screen');
   bossSummonTimer = 0;
+
+  // Special summon flow for the first demon boss (Circle 1, Level 3):
+  // 1) Play Fragment-Final.mp3
+  // 2) Wait for it to end
+  // 3) Shake the screen
+  // 4) Deduct sheet music + start the boss level (which also starts BGM)
+  if (level && level.id === 3) {
+    const canvasEl = document.getElementById('gameCanvas');
+    const doShakeAndStart = () => {
+      // Shake the canvas visually even while gameplay loop isn't running yet.
+      if (canvasEl) {
+        const shakeDurationMs = 650;
+        const shakeStart = performance.now();
+        const step = (now) => {
+          const t = now - shakeStart;
+          if (!canvasEl) return;
+          if (t >= shakeDurationMs) {
+            canvasEl.style.transform = 'none';
+            canvasEl.style.transition = '';
+            return;
+          }
+          const strength = 10;
+          const x = (Math.random() - 0.5) * strength;
+          const y = (Math.random() - 0.5) * strength;
+          canvasEl.style.transform = `translate(${x}px, ${y}px)`;
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+
+      const fill = document.getElementById('summon-progress-fill');
+      if (fill) fill.style.width = '100%';
+
+      progression.sheetMusic--;
+      savePersistent();
+      // Small delay so the shake lands before gameplay takeover.
+      setTimeout(() => { startLevel(level); }, 500);
+    };
+
+    if (progression.soundOn) {
+      const a = new Audio('audio/Fragments-Audio/Fragment-Final.mp3');
+      a.addEventListener('ended', () => doShakeAndStart(), { once: true });
+      a.play().catch(() => { doShakeAndStart(); });
+    } else {
+      doShakeAndStart();
+    }
+    return;
+  }
+
   const summonInterval = setInterval(() => {
     bossSummonTimer += 0.015;
     const fill = document.getElementById('summon-progress-fill');
@@ -392,6 +587,7 @@ function showVictory(rewards) {
 }
 
 document.getElementById('victory-menu-btn')?.addEventListener('click', () => {
+  stopMusic();
   showScreen('home-screen');
 });
 
@@ -411,14 +607,17 @@ function showGameOverScreen(reason) {
 
 document.getElementById('retry-btn')?.addEventListener('click', () => {
   if (currentLevelConfig) {
+    stopMusic();
     showScreen(null);
     startLevel(currentLevelConfig);
   } else {
+    stopMusic();
     showScreen('home-screen');
   }
 });
 
 document.getElementById('restart-btn')?.addEventListener('click', () => {
+  stopMusic();
   showScreen('home-screen');
 });
 
@@ -452,7 +651,7 @@ function updateHUD() {
   // Riff charge
   const riffBar = document.getElementById('riff-charge-bar');
   const riffText = document.getElementById('riff-charge-text');
-  if (progression.riffs.length > 0) {
+  if (hasUnlockedRiff()) {
     riffBar.style.display = 'block';
     const riff = RIFFS.find(r => r.id === progression.riffs[0]);
     const pct = riff ? (riffCharge / riff.chargeRequired * 100) : 0;
@@ -511,7 +710,8 @@ function drawWaveBanner() {
     if (currentLevelConfig?.difficulty !== 'Boss') {
       ctx.font = '16px Courier New';
       ctx.fillStyle = '#aaa';
-      const count = currentLevelConfig ? currentLevelConfig.enemyCountBase + waveNumber * (currentLevelConfig.enemyCountScale || 0) : waveTotalEnemies;
+      const rawCount = currentLevelConfig ? currentLevelConfig.enemyCountBase + waveNumber * (currentLevelConfig.enemyCountScale || 0) : waveTotalEnemies;
+      const count = Math.max(1, Math.floor(rawCount * 0.5));
       ctx.fillText(`${count} enemies`, W/2, H/2 - 10);
     }
     ctx.globalAlpha = 1;
@@ -621,6 +821,16 @@ document.getElementById('pause-home-btn')?.addEventListener('click', () => {
   gameRunning = false;
   pauseTimestamp = 0;
   savePersistent();
+  stopMusic();
+  if (typeof bossIntroAudio !== 'undefined' && bossIntroAudio) {
+    try { bossIntroAudio.pause(); } catch (e) { /* ignore */ }
+    bossIntroAudio = null;
+  }
+  if (typeof bossIntroShakeInterval !== 'undefined' && bossIntroShakeInterval) {
+    clearInterval(bossIntroShakeInterval);
+    bossIntroShakeInterval = null;
+  }
+  if (typeof bossIntroActive !== 'undefined') bossIntroActive = false;
   showScreen('home-screen');
 });
 

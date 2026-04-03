@@ -73,6 +73,11 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="setting-row">
+          <span class="setting-label">Music Volume</span>
+          <span class="setting-value" style="min-width:48px;text-align:right;color:#888" id="music-volume-val">10%</span>
+          <input type="range" id="music-volume" min="0" max="100" step="1" value="10" />
+        </div>
       </div>
       <div class="controls-ref">
         <h3>CONTROLS</h3>
@@ -136,6 +141,14 @@
       <div class="frag-title">FRAGMENT ACQUIRED</div>
       <div class="frag-progress" id="frag-pips"></div>
       <div class="frag-count" id="frag-count-text"></div>
+    </div>
+
+    <!-- ═══ LEVEL FRAGMENTS COMPLETE PROMPT ═══ -->
+    <div id="level-fragments-complete-screen" class="game-overlay">
+      <h2>All fragments in this level have been acquired.</h2>
+      <button class="btn btn-primary" id="level-fragments-proceed-btn" style="margin-top:18px; display:none;">Proceed To Level 2</button>
+      <button class="btn btn-danger" id="level-fragments-home-btn" style="margin-top:10px;">Return To Level Select</button>
+      <button class="btn btn-primary" id="level-fragments-continue-btn" style="margin-top:10px;">Continue Fighting</button>
     </div>
 
     <!-- ═══ ETERNAL DAMNATION WARNING ═══ -->

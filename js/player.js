@@ -63,6 +63,11 @@ const player = {
   jumpGraceTimer: 0,
   jumpGraceWindow: 12,
 
+  // Jump count (for double jump)
+  jumpsUsed: 0,
+  maxJumps: 2,
+  jumpWasDown: false,
+
   // Animation
   walkFrame: 0,
   walkTimer: 0,
@@ -80,6 +85,8 @@ const player = {
     this.dashing = false; this.dashTimer = 0; this.dashCooldown = 0;
     this.dashJumping = false; this.dashJumpTimer = 0;
     this.recentlyJumped = false; this.jumpGraceTimer = 0;
+    this.jumpsUsed = 0;
+    this.jumpWasDown = false;
     this.iFrames = 0; this.facing = 1;
   },
 
@@ -102,8 +109,8 @@ const player = {
       this.x += this.vx; this.y += this.vy; this.h = currentH;
       this.onGround = false;
       checkPlatformCollision(this);
-      if (this.onGround) { this.dashJumping = false; this.vy = 0; }
-      if (this.y + this.h >= GROUND_Y + 50) { this.y = GROUND_Y + 50 - this.h; this.vy = 0; this.onGround = true; this.dashJumping = false; }
+      if (this.onGround) { this.dashJumping = false; this.vy = 0; this.jumpsUsed = 0; }
+      if (this.y + this.h >= GROUND_Y + 50) { this.y = GROUND_Y + 50 - this.h; this.vy = 0; this.onGround = true; this.dashJumping = false; this.jumpsUsed = 0; }
       if (this.x < 0) this.x = 0;
       if (this.x + this.w > W) this.x = W - this.w;
       this._tickCooldowns();
@@ -127,12 +134,12 @@ const player = {
           });
         }
       }
-        if (this.dashTimer <= 0) { this.dashing = false; this.vx = 0; this.vy = 0; }
+      if (this.dashTimer <= 0) { this.dashing = false; this.vx = 0; this.vy = 0; }
       this.x += this.vx; this.y += this.vy; this.h = currentH;
       // freeze gravity during normal dash
       this.onGround = false;
       checkPlatformCollision(this);
-      if (this.y + this.h >= GROUND_Y + 50) { this.y = GROUND_Y + 50 - this.h; this.vy = 0; this.onGround = true; }
+      if (this.y + this.h >= GROUND_Y + 50) { this.y = GROUND_Y + 50 - this.h; this.vy = 0; this.onGround = true; this.jumpsUsed = 0; }
       if (this.x < 0) this.x = 0;
       if (this.x + this.w > W) this.x = W - this.w;
       this._tickCooldowns();
@@ -167,13 +174,25 @@ const player = {
       this.idleFrame = 0; this.idleTimer = 0;
     }
 
-    // Jump
-    if ((keys['w'] || keys['arrowup'] || keys[' ']) && this.onGround && !this.heavyAttacking) {
-      this.vy = this.jumpForce;
-      this.onGround = false;
-      this.crouching = false;
-      this.recentlyJumped = true;
-      this.jumpGraceTimer = this.jumpGraceWindow;
+    // Jump / Double Jump (edge-triggered)
+    const jumpKeyDown = (keys['w'] || keys['arrowup'] || keys[' ']);
+    const jumpPressed = jumpKeyDown && !this.jumpWasDown;
+    if (jumpPressed && !this.heavyAttacking) {
+      // Ground jump
+      if (this.onGround) {
+        this.vy = this.jumpForce;
+        this.onGround = false;
+        this.crouching = false;
+        this.recentlyJumped = true;
+        this.jumpGraceTimer = this.jumpGraceWindow;
+        this.jumpsUsed = 1;
+      } else if (this.jumpsUsed < this.maxJumps) {
+        // Double jump in air
+        this.vy = this.jumpForce;
+        this.jumpsUsed++;
+        this.recentlyJumped = false;
+        this.jumpGraceTimer = 0;
+      }
     }
 
     // Crouch
@@ -187,10 +206,11 @@ const player = {
     this.x += this.vx; this.y += this.vy; this.h = currentH;
     this.onGround = false;
     checkPlatformCollision(this);
-    if (this.y + this.h >= GROUND_Y + 50) { this.y = GROUND_Y + 50 - this.h; this.vy = 0; this.onGround = true; }
+    if (this.y + this.h >= GROUND_Y + 50) { this.y = GROUND_Y + 50 - this.h; this.vy = 0; this.onGround = true; this.jumpsUsed = 0; }
     if (this.x < 0) this.x = 0;
     if (this.x + this.w > W) this.x = W - this.w;
 
+    this.jumpWasDown = jumpKeyDown;
     this._tickCooldowns();
   },
 

@@ -7,6 +7,25 @@ function startLevel(levelConfig) {
   currentLevelConfig = levelConfig;
   isEternalDamnationRun = (levelConfig.id === ETERNAL_DAMNATION.id);
 
+  // Boss intro sequence state (Circle 1 Boss only)
+  if (typeof bossIntroActive === 'undefined') window.bossIntroActive = false;
+  if (typeof bossIntroAudio === 'undefined') window.bossIntroAudio = null;
+  if (typeof bossIntroShakeInterval === 'undefined') window.bossIntroShakeInterval = null;
+
+  // Per-level background music selection.
+  // (Low volume + fade handled inside playMusic()/state.js)
+  if (typeof setLevelBgmSrc === 'function') {
+    if (levelConfig.id === 1) setLevelBgmSrc('audio/TalesInTheFire.mp3');
+    else if (levelConfig.id === 2) setLevelBgmSrc('audio/IronSaffron.mp3');
+    else if (levelConfig.id === 3) setLevelBgmSrc('audio/Cathedral In My Chest.mp3');
+    else setLevelBgmSrc(null);
+  }
+
+  // Reset per-level fragment completion prompt state.
+  if (typeof levelFragmentsCompleteShown !== 'undefined') levelFragmentsCompleteShown = false;
+  if (typeof pendingLevelFragmentsComplete !== 'undefined') pendingLevelFragmentsComplete = false;
+  if (typeof pendingLevelFragmentsCompleteLevelId !== 'undefined') pendingLevelFragmentsCompleteLevelId = null;
+
   const buffs = getShopBuffs();
   const playerHp = isEternalDamnationRun ? ETERNAL_DAMNATION.playerHp : (5 + buffs.maxHpBonus);
   player.reset(playerHp);
@@ -45,7 +64,44 @@ function startLevel(levelConfig) {
   canvas.style.background = '#1a0800';
   document.getElementById('sunrise-fill').style.width = '0%';
 
-  playMusic();
+  // Special Circle 1 boss intro: start with Froggy only, shake + play Fragment-Final,
+  // then spawn boss + start boss BGM after the audio ends.
+  const isCircle1Boss = (levelConfig?.id === 3 && levelConfig?.difficulty === 'Boss');
+  if (isCircle1Boss) {
+    bossIntroActive = true;
+
+    // Ensure no BGM starts yet.
+    if (typeof setLevelBgmSrc === 'function') setLevelBgmSrc(null);
+    stopMusic();
+
+    // Start shaking immediately while the audio plays.
+    if (bossIntroShakeInterval) clearInterval(bossIntroShakeInterval);
+    bossIntroShakeInterval = setInterval(() => {
+      shakeTimer = 6;
+      shakeIntensity = 10;
+    }, 90);
+
+    // Play the intro audio (non-looping).
+    try {
+      bossIntroAudio = new Audio('audio/Fragments-Audio/Fragment-Final.mp3');
+      bossIntroAudio.volume = Math.max(0, Math.min(1, (progression.musicVolume ?? 0.10) * 1.2));
+      bossIntroAudio.addEventListener('ended', () => {
+        // Stronger shake on reveal.
+        shakeTimer = 35;
+        shakeIntensity = 14;
+        if (bossIntroShakeInterval) { clearInterval(bossIntroShakeInterval); bossIntroShakeInterval = null; }
+        bossIntroActive = false;
+
+        // Now set boss BGM and spawn the boss.
+        if (typeof setLevelBgmSrc === 'function') setLevelBgmSrc('audio/Cathedral In My Chest.mp3');
+        playMusic();
+        startNextWave(); // spawns boss wave now
+      }, { once: true });
+      if (progression.soundOn) bossIntroAudio.play().catch(() => { /* ignore */ });
+    } catch (e) { /* ignore */ }
+  } else {
+    playMusic();
+  }
   showScreen(null); // hide all overlays, show gameplay
   generatePlatforms();
 }
@@ -72,6 +128,11 @@ function startEternalDamnation() {
 
 // ─── Waves ────────────────────────────────────────────────
 function startNextWave() {
+  // Block boss spawning while the boss intro is playing.
+  if (currentLevelConfig?.difficulty === 'Boss' && typeof bossIntroActive !== 'undefined' && bossIntroActive) {
+    return;
+  }
+
   // Check fragment drop for COMPLETED wave
   if (waveNumber > 0 && currentLevelConfig) {
     checkWaveEndFragment();
@@ -95,7 +156,9 @@ function startNextWave() {
 
   const countBase = currentLevelConfig?.enemyCountBase || 3;
   const countScale = currentLevelConfig?.enemyCountScale || 2;
-  const count = countBase + waveNumber * countScale;
+  // Halve total enemies across waves to make the game easier.
+  const rawCount = countBase + waveNumber * countScale;
+  const count = Math.max(1, Math.floor(rawCount * 0.5));
   waveTotalEnemies = count;
   waveSpawned = 0;
   enemiesRemaining = count;
@@ -125,7 +188,7 @@ function checkWaveEndFragment() {
 
   if (Math.random() < dropRate) {
     // 30% Devil's Bargain, 70% straight fragment
-    if (Math.random() < 0.5) {
+    if (Math.random() < 0.3) {
       showDevilsBargain();
     } else {
       awardFragmentDirect();
