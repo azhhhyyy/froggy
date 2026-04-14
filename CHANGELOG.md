@@ -1,6 +1,8 @@
 # Wave Platformer Changelog
 
 ## [v0.6.0] - 2026-04-01 (Animation & Boss Polish Update)
+[User Feedback: Game is extremely difficult, no space to move around, reward not satisfactory]
+
 ### Core Mechanics & Navigation
 - **Dash Jump:** Introduced a new high-velocity diagonal aerial dash feature when dashing immediately after a jump.
 - **Verticality:** Dynamically generated floating platforms are now spawned at jump-dashable heights to increase navigation complexity.
@@ -8,7 +10,11 @@
 - **Standalone Boss Encounters:** Adjusted Boss battles (e.g., The Abyss) to no longer display "Wave X" in the HUD. The encounter is treated visually and mechanically as a solitary duel.
 - **Riff Rewards:** The "Infernal Chord" Special Attack Riff is now permanently unlocked by default across profiles to ensure it can always be used.
 
+
+
 ### Visual Fidelity & Animation
+[Added Chracter Sprites & Visual Elements]
+
 - **Ground Alignment:** Adjusted global `GROUND_Y` coordinate to exactly 74% of the viewport height so sprites align perfectly with the background bridge railing.
 - **Dynamic idle:** Integrated `froggy-idle.png` sprite sheet, introducing a proper 11-frame idle animation states while grounded and not moving/attacking.
 - **Combat Splicing:** Corrected and realigned the `froggy-atk-heavy.png` (6 frames) and `froggy-atk-light.png` (4 frames) mappings within the player's animation states.
@@ -21,6 +27,8 @@
 
 ## [v0.5.0] - 2026-03-31 (The Devil's Bargain Update)
 ### Core Mechanics
+[User Feedback: users need rewards faster, added  devils bargain feature to offer faster reward with hidden progression, also added shop with addons]
+
 - **The Devil's Bargain:** Whenever a Sheet Fragment drops at the end of a wave, the game pauses. The player is presented with a choice: retain the fragment to escape, or trade it for a powerful Dark Power.
 - **Damnation Meter:** A persistent 0-8 tracker that measures how many times the player deals with the devil. Carries over between deaths and resets.
 - **Sunrise Timer:** An overarching 15-minute real-time clock added to every run. The sky slowly transitions from night to an orange sunrise. Failing to finish the run before sunrise results in an instant Game Over and +1 to the Damnation Meter.
@@ -53,6 +61,9 @@
 ---
 
 ## [v0.4.0] - Combo System & Combat Balancing
+[User Feedback: combat felt slow & repetitive to users, added combos to learn and chain which do more damage]
+
+
 ### Features
 - **Combo System Engine:** Added action tracking to recognize complex input strings natively.
 - **New Combos Added:**
@@ -79,8 +90,10 @@
 - Changed to a fixed-timestep game loop to keep speed/physics multipliers stable regardless of monitor refresh rate.
 
 ---
-
 ## [v0.3.0] - AI Intellect Update
+[User Feedback: Enemies just rush player, need to slow them down, reduce number of enemies at once,]
+
+
 ### Features
 - **Melee Attack Overhaul:** Removed default "damage on contact" collisions. Enemies now must stop, wind-up, and execute a dedicated melee swing to deal damage.
 - **Ranged Enemies:** Added Fireball projectiles. Enemies at a distance will hold position, charge a fireball, and fire it. Fireballs have slight predictive tracking but can be purely side-stepped with movement or dashes.
@@ -89,6 +102,7 @@
 ---
 
 ## [v0.2.0] - Mobility Update
+[User Feedback: Dash didn't feel agile, very difficult to control, felt punishing]
 ### Features
 - **Dash Mechanic:** Added a Dash/Dodge ability (Left Shift). 
 - Dashing provides full Invincibility Frames (iFrames) for its duration.
